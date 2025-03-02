@@ -6,8 +6,12 @@ import CoinLauncher from '@/components/CoinLauncher';
 import TokenSeller from '@/components/TokenSeller';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { WalletInfo, WalletDetails } from '@/types';
-import { getBalance } from '@/lib/solana';
+import { WalletInfo, WalletDetails, TokenInfo } from '@/types';
+import { getBalance, getUserTokens } from '@/lib/solana';
+import { Button } from '@/components/ui/button';
+import { CoinsIcon } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [wallets, setWallets] = useState<WalletDetails[]>([]);
@@ -16,6 +20,7 @@ const Index = () => {
     connected: false,
     activeWalletIndex: -1,
   });
+  const [launchedTokens, setLaunchedTokens] = useState<TokenInfo[]>([]);
 
   const handleWalletConnect = (newWallet: any, index: number) => {
     setWalletInfo({
@@ -61,7 +66,6 @@ const Index = () => {
     }
   };
 
-  // Fixed to no longer return a Promise
   const handleRefreshBalance = async (id: string) => {
     // Get the current wallet list
     const updatedWallets = [...wallets];
@@ -87,6 +91,44 @@ const Index = () => {
     }
     return null;
   };
+
+  // Handle successful token launch
+  const handleTokenLaunched = (tokenAddress: string, tokenSymbol: string, tokenDecimals: number) => {
+    const newToken: TokenInfo = {
+      address: tokenAddress,
+      amount: 0, // Initially the buyer has 0
+      decimals: tokenDecimals,
+      symbol: tokenSymbol
+    };
+    
+    const updatedTokens = [...launchedTokens, newToken];
+    setLaunchedTokens(updatedTokens);
+    
+    // Store in localStorage for persistence
+    localStorage.setItem('launchedTokens', JSON.stringify(updatedTokens));
+    
+    // Show toast with link to token exchange
+    toast.success(
+      <div className="flex flex-col">
+        <p>Token launched successfully!</p>
+        <Button asChild variant="link" className="p-0 h-auto text-sm text-left mt-1 underline">
+          <Link to="/tokens">Go to Token Exchange</Link>
+        </Button>
+      </div>
+    );
+  };
+
+  // Get tokens from localStorage if available
+  useEffect(() => {
+    const storedTokens = localStorage.getItem('launchedTokens');
+    if (storedTokens) {
+      try {
+        setLaunchedTokens(JSON.parse(storedTokens));
+      } catch (error) {
+        console.error('Failed to parse stored tokens:', error);
+      }
+    }
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-gray-950 to-black text-white">
@@ -116,6 +158,22 @@ const Index = () => {
             >
               Create, launch, and manage tokens on the Solana blockchain with ease
             </motion.p>
+            
+            {launchedTokens.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="mt-4"
+              >
+                <Button asChild className="bg-gradient-to-r from-solana to-solana-secondary">
+                  <Link to="/tokens" className="flex items-center gap-2">
+                    <CoinsIcon className="h-4 w-4" />
+                    Go to Token Exchange
+                  </Link>
+                </Button>
+              </motion.div>
+            )}
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -145,6 +203,7 @@ const Index = () => {
                 <CoinLauncher 
                   wallet={getActiveWallet()?.keypair || null} 
                   isConnected={walletInfo.connected}
+                  onTokenLaunched={handleTokenLaunched}
                 />
               </motion.div>
               

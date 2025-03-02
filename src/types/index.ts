@@ -22,8 +22,8 @@ export interface CoinDetails {
   totalSupply: number;
   description?: string;
   imageUrl?: string;
-  gasFee?: number; // Added gas fee
-  tip?: number;     // Added tip
+  gasFee?: number;
+  tip?: number;
 }
 
 export interface TransactionStatus {
@@ -51,7 +51,24 @@ export interface SellTransactionResult {
   error?: string;
 }
 
+export interface BuyTransactionResult {
+  transactionId?: string;
+  error?: string;
+  tokenAmount?: number;
+}
+
 export interface TransactionFees {
   gasFee: number;
   tip: number;
+}
+
+export interface ExchangeRates {
+  [tokenAddress: string]: number; // SOL per token
+}
+
+export interface TradeInfo {
+  type: 'buy' | 'sell';
+  amount: number;
+  tokenAddress: string;
+  timestamp: number;
 }

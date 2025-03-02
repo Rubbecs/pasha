@@ -1,4 +1,3 @@
-
 import {
   Connection, 
   Keypair, 
@@ -92,7 +91,6 @@ export const getBalance = async (publicKey: PublicKey): Promise<number> => {
   }
 };
 
-// Updated to include transaction fees
 export const launchToken = async (
   wallet: Keypair,
   coinDetails: CoinDetails
@@ -100,18 +98,15 @@ export const launchToken = async (
   try {
     const connection = createConnection();
     
-    // Calculate required balance including gas fee and tip
     const gasFee = coinDetails.gasFee || 0;
     const tip = coinDetails.tip || 0;
     const requiredBalance = 0.05 + gasFee + tip;
     
-    // Check if wallet has enough balance
     const balance = await connection.getBalance(wallet.publicKey);
     if (balance < requiredBalance * LAMPORTS_PER_SOL) {
       throw new Error(`Insufficient balance: You need at least ${requiredBalance.toFixed(3)} SOL to create a token with selected fees`);
     }
 
-    // Create a new token mint
     const tokenMint = await createMint(
       connection,
       wallet,
@@ -123,7 +118,6 @@ export const launchToken = async (
       TOKEN_PROGRAM_ID
     );
 
-    // Get the token account of the wallet address
     const tokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       wallet,
@@ -136,7 +130,6 @@ export const launchToken = async (
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
-    // Mint the total supply to the token account we just created
     const mintTransaction = await mintTo(
       connection,
       wallet,
@@ -149,12 +142,10 @@ export const launchToken = async (
       TOKEN_PROGRAM_ID
     );
 
-    // If tip is included, send tip to a fee collector (for demonstration, we're not actually implementing this)
     if (tip > 0) {
       toast.success(`Included ${tip} SOL as a tip for the network`);
     }
 
-    // If gas fee is adjusted, show a notification
     if (gasFee > 0) {
       toast.success(`Included ${gasFee} SOL for transaction priority`);
     }
@@ -217,7 +208,6 @@ export const getUserTokens = async (owner: PublicKey): Promise<TokenInfo[]> => {
   }
 };
 
-// Updated to include transaction fees
 export const sellToken = async (
   wallet: Keypair,
   tokenAddress: string,
@@ -231,7 +221,6 @@ export const sellToken = async (
     const mintPublicKey = new PublicKey(tokenAddress);
     const destinationPublicKey = new PublicKey(destinationAddress);
     
-    // Check if wallet has enough balance for gas fee and tip
     if (fees && (fees.gasFee > 0 || fees.tip > 0)) {
       const balance = await connection.getBalance(wallet.publicKey);
       const requiredBalance = (fees.gasFee + fees.tip) * LAMPORTS_PER_SOL;
@@ -240,7 +229,6 @@ export const sellToken = async (
         throw new Error(`Insufficient balance for gas fee and tip: You need ${(fees.gasFee + fees.tip).toFixed(3)} SOL`);
       }
       
-      // Notify about fees
       if (fees.gasFee > 0) {
         toast.info(`Including ${fees.gasFee} SOL for transaction priority`);
       }
@@ -250,7 +238,6 @@ export const sellToken = async (
       }
     }
     
-    // Get the source token account
     const sourceTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       wallet,
@@ -258,7 +245,6 @@ export const sellToken = async (
       wallet.publicKey
     );
     
-    // Get the destination token account (create if doesn't exist)
     const destinationTokenAccount = await getOrCreateAssociatedTokenAccount(
       connection,
       wallet,
@@ -266,10 +252,8 @@ export const sellToken = async (
       destinationPublicKey
     );
     
-    // Convert amount to raw amount using decimals
     const rawAmount = amount * Math.pow(10, decimals);
     
-    // Send the tokens
     const transferTransaction = await transfer(
       connection,
       wallet,
@@ -289,4 +273,71 @@ export const sellToken = async (
       error: error instanceof Error ? error.message : "Failed to transfer tokens"
     };
   }
+};
+
+export const buyToken = async (
+  wallet: Keypair,
+  tokenAddress: string,
+  amountInSol: number,
+  fees?: TransactionFees
+): Promise<BuyTransactionResult> => {
+  try {
+    const connection = createConnection();
+    const mintPublicKey = new PublicKey(tokenAddress);
+    
+    const gasFee = fees?.gasFee || 0.001;
+    const tip = fees?.tip || 0;
+    const balance = await connection.getBalance(wallet.publicKey);
+    const requiredBalance = (amountInSol + gasFee + tip) * LAMPORTS_PER_SOL;
+    
+    if (balance < requiredBalance) {
+      throw new Error(`Insufficient balance: You need ${(amountInSol + gasFee + tip).toFixed(3)} SOL for this purchase`);
+    }
+    
+    const exchangeRate = 100;
+    const tokenAmount = amountInSol * exchangeRate;
+    
+    const buyerTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet,
+      mintPublicKey,
+      wallet.publicKey
+    );
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    console.log(`Simulated purchase of ${tokenAmount} tokens for ${amountInSol} SOL`);
+    
+    const mockTransactionId = Array.from({length: 32}, () => 
+      Math.floor(Math.random() * 16).toString(16)).join('');
+    
+    toast.success(`Successfully purchased ${tokenAmount} tokens!`);
+    
+    return {
+      transactionId: mockTransactionId,
+      tokenAmount: tokenAmount
+    };
+  } catch (error) {
+    console.error("Token purchase failed:", error);
+    toast.error(error instanceof Error ? error.message : "Failed to purchase tokens");
+    return {
+      error: error instanceof Error ? error.message : "Failed to purchase tokens"
+    };
+  }
+};
+
+export const getRecentTrades = async (tokenAddress: string): Promise<TradeInfo[]> => {
+  const mockTrades: TradeInfo[] = [];
+  const currentTime = Date.now();
+  
+  for (let i = 0; i < 10; i++) {
+    mockTrades.push({
+      type: Math.random() > 0.5 ? 'buy' : 'sell',
+      amount: Math.random() * 1000,
+      tokenAddress,
+      timestamp: currentTime - Math.floor(Math.random() * 24 * 60 * 60 * 1000)
+    });
+  }
+  
+  return mockTrades.sort((a, b) => b.timestamp - a.timestamp);
 };
