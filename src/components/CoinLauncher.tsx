@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -5,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
-import { CoinsIcon, CheckCircleIcon, AlertTriangleIcon } from "lucide-react";
+import { CoinsIcon, CheckCircleIcon, AlertTriangleIcon, InfoIcon } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { launchToken } from "@/lib/solana";
@@ -23,6 +24,8 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
     symbol: '',
     decimals: 9,
     totalSupply: 1000000,
+    gasFee: 0.001, // Default gas fee
+    tip: 0,       // Default tip
   });
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>({
     status: 'idle',
@@ -30,15 +33,51 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    setCoinDetails(prevDetails => ({
-      ...prevDetails,
-      [name]: value,
-    }));
+    
+    // Handle numeric inputs correctly
+    if (name === 'decimals' || name === 'totalSupply' || name === 'gasFee' || name === 'tip') {
+      const numValue = parseFloat(value);
+      setCoinDetails(prevDetails => ({
+        ...prevDetails,
+        [name]: isNaN(numValue) ? 0 : numValue,
+      }));
+    } else {
+      setCoinDetails(prevDetails => ({
+        ...prevDetails,
+        [name]: value,
+      }));
+    }
   };
 
   const handleLaunchToken = async () => {
     if (!wallet) {
       toast.error('Please connect your wallet first.');
+      return;
+    }
+    
+    // Validate inputs
+    if (!coinDetails.name || !coinDetails.symbol) {
+      toast.error('Token name and symbol are required');
+      return;
+    }
+    
+    if (coinDetails.decimals < 0 || coinDetails.decimals > 18) {
+      toast.error('Decimals must be between 0 and 18');
+      return;
+    }
+    
+    if (coinDetails.totalSupply <= 0) {
+      toast.error('Total supply must be greater than 0');
+      return;
+    }
+    
+    if (coinDetails.gasFee < 0) {
+      toast.error('Gas fee cannot be negative');
+      return;
+    }
+    
+    if (coinDetails.tip < 0) {
+      toast.error('Tip cannot be negative');
       return;
     }
 
@@ -126,10 +165,56 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
               <Textarea
                 placeholder="Description"
                 name="description"
-                value={coinDetails.description}
+                value={coinDetails.description || ''}
                 onChange={handleChange}
                 className="glass-input"
               />
+              
+              <div className="pt-3">
+                <div className="flex items-center mb-1">
+                  <InfoIcon className="h-4 w-4 mr-1 text-solana-secondary" />
+                  <span className="text-sm text-gray-300">Transaction Fee Settings</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="gasFee" className="text-xs text-gray-400 mb-1 block">
+                      Gas Fee (SOL)
+                    </label>
+                    <Input
+                      id="gasFee"
+                      type="number"
+                      name="gasFee"
+                      placeholder="Gas Fee in SOL"
+                      value={coinDetails.gasFee}
+                      onChange={handleChange}
+                      className="glass-input"
+                      step="0.001"
+                      min="0"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="tip" className="text-xs text-gray-400 mb-1 block">
+                      Tip (SOL)
+                    </label>
+                    <Input
+                      id="tip"
+                      type="number"
+                      name="tip"
+                      placeholder="Optional Tip in SOL"
+                      value={coinDetails.tip}
+                      onChange={handleChange}
+                      className="glass-input"
+                      step="0.001"
+                      min="0"
+                    />
+                  </div>
+                </div>
+                {(coinDetails.gasFee > 0 || coinDetails.tip > 0) && (
+                  <div className="mt-2 text-xs text-gray-400">
+                    Total fees: {(Number(coinDetails.gasFee) + Number(coinDetails.tip)).toFixed(3)} SOL
+                  </div>
+                )}
+              </div>
             </div>
             <Separator />
             <motion.div

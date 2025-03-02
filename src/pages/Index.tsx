@@ -61,16 +61,24 @@ const Index = () => {
     }
   };
 
+  // Fixed to no longer return a Promise
   const handleRefreshBalance = async (id: string) => {
-    setWallets(prev => {
-      return Promise.all(prev.map(async wallet => {
-        if (wallet.id === id) {
-          const updatedBalance = await getBalance(wallet.publicKey);
-          return { ...wallet, balance: updatedBalance };
-        }
-        return wallet;
-      }));
-    });
+    // Get the current wallet list
+    const updatedWallets = [...wallets];
+    
+    // Find the wallet to update and update its balance
+    for (let i = 0; i < updatedWallets.length; i++) {
+      if (updatedWallets[i].id === id) {
+        const newBalance = await getBalance(updatedWallets[i].publicKey);
+        updatedWallets[i] = {
+          ...updatedWallets[i],
+          balance: newBalance
+        };
+      }
+    }
+    
+    // Update state with the new wallet list
+    setWallets(updatedWallets);
   };
 
   const getActiveWallet = (): WalletDetails | null => {

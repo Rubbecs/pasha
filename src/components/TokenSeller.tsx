@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { 
@@ -6,7 +5,8 @@ import {
   RefreshCwIcon, 
   SendIcon, 
   PercentIcon, 
-  CircleDollarSignIcon 
+  CircleDollarSignIcon,
+  InfoIcon
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { getUserTokens, sellToken } from "@/lib/solana";
-import { WalletDetails, TokenInfo, TransactionStatus } from "@/types";
+import { WalletDetails, TokenInfo, TransactionStatus, TransactionFees } from "@/types";
 import TransactionStatusComponent from './TransactionStatus';
 import { PublicKey } from '@solana/web3.js';
 
@@ -30,6 +30,10 @@ const TokenSeller: React.FC<TokenSellerProps> = ({ wallet }) => {
   const [destinationAddress, setDestinationAddress] = useState('');
   const [sellAmount, setSellAmount] = useState('');
   const [sellPercent, setSellPercent] = useState('');
+  const [transactionFees, setTransactionFees] = useState<TransactionFees>({
+    gasFee: 0.001,
+    tip: 0
+  });
   const [transactionStatus, setTransactionStatus] = useState<TransactionStatus>({
     status: 'idle',
   });
@@ -62,6 +66,16 @@ const TokenSeller: React.FC<TokenSellerProps> = ({ wallet }) => {
     setSellPercent('');
   };
 
+  const handleFeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    const numValue = parseFloat(value);
+    
+    setTransactionFees(prev => ({
+      ...prev,
+      [name]: isNaN(numValue) ? 0 : numValue
+    }));
+  };
+
   const handleSellToken = async () => {
     if (!wallet || !selectedToken || !destinationAddress) {
       toast.error("Please select a token and enter destination address");
@@ -88,6 +102,17 @@ const TokenSeller: React.FC<TokenSellerProps> = ({ wallet }) => {
       return;
     }
 
+    // Validate fees
+    if (transactionFees.gasFee < 0) {
+      toast.error("Gas fee cannot be negative");
+      return;
+    }
+    
+    if (transactionFees.tip < 0) {
+      toast.error("Tip cannot be negative");
+      return;
+    }
+
     setTransactionStatus({ status: 'pending', message: 'Selling tokens...' });
 
     try {
@@ -96,7 +121,8 @@ const TokenSeller: React.FC<TokenSellerProps> = ({ wallet }) => {
         selectedToken.address,
         destinationAddress,
         amount,
-        selectedToken.decimals
+        selectedToken.decimals,
+        transactionFees
       );
 
       if (result.transactionId) {
@@ -284,6 +310,52 @@ const TokenSeller: React.FC<TokenSellerProps> = ({ wallet }) => {
                     onChange={(e) => setDestinationAddress(e.target.value)}
                     className="glass-input mb-3"
                   />
+
+                  <div className="mb-3">
+                    <div className="flex items-center mb-1">
+                      <InfoIcon className="h-4 w-4 mr-1 text-solana-secondary" />
+                      <span className="text-sm text-gray-300">Transaction Fee Settings</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label htmlFor="gasFee" className="text-xs text-gray-400 mb-1 block">
+                          Gas Fee (SOL)
+                        </label>
+                        <Input
+                          id="gasFee"
+                          type="number"
+                          name="gasFee"
+                          placeholder="Gas Fee in SOL"
+                          value={transactionFees.gasFee}
+                          onChange={handleFeeChange}
+                          className="glass-input"
+                          step="0.001"
+                          min="0"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="tip" className="text-xs text-gray-400 mb-1 block">
+                          Tip (SOL)
+                        </label>
+                        <Input
+                          id="tip"
+                          type="number"
+                          name="tip"
+                          placeholder="Optional Tip in SOL"
+                          value={transactionFees.tip}
+                          onChange={handleFeeChange}
+                          className="glass-input"
+                          step="0.001"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                    {(transactionFees.gasFee > 0 || transactionFees.tip > 0) && (
+                      <div className="mt-2 text-xs text-gray-400">
+                        Total fees: {(Number(transactionFees.gasFee) + Number(transactionFees.tip)).toFixed(3)} SOL
+                      </div>
+                    )}
+                  </div>
 
                   <Button
                     className="w-full bg-gradient-to-r from-solana to-solana-secondary hover:opacity-90 transition-opacity"

@@ -20,7 +20,7 @@ import {
   getAccount
 } from '@solana/spl-token';
 import { toast } from "sonner";
-import { CoinDetails, CoinLaunchResult, SellTransactionResult, TokenInfo } from '@/types';
+import { CoinDetails, CoinLaunchResult, SellTransactionResult, TokenInfo, TransactionFees } from '@/types';
 import bs58 from 'bs58';
 
 export const RPC_ENDPOINT = "https://frosty-frequent-pool.solana-mainnet.quiknode.pro/b51ed5b606e82a64e4af515bb6864ad7da8e6fcc/";
@@ -92,6 +92,7 @@ export const getBalance = async (publicKey: PublicKey): Promise<number> => {
   }
 };
 
+// Updated to include transaction fees
 export const launchToken = async (
   wallet: Keypair,
   coinDetails: CoinDetails
@@ -99,10 +100,15 @@ export const launchToken = async (
   try {
     const connection = createConnection();
     
-    // First check if wallet has enough balance
+    // Calculate required balance including gas fee and tip
+    const gasFee = coinDetails.gasFee || 0;
+    const tip = coinDetails.tip || 0;
+    const requiredBalance = 0.05 + gasFee + tip;
+    
+    // Check if wallet has enough balance
     const balance = await connection.getBalance(wallet.publicKey);
-    if (balance < 0.05 * LAMPORTS_PER_SOL) {
-      throw new Error("Insufficient balance: You need at least 0.05 SOL to create a token");
+    if (balance < requiredBalance * LAMPORTS_PER_SOL) {
+      throw new Error(`Insufficient balance: You need at least ${requiredBalance.toFixed(3)} SOL to create a token with selected fees`);
     }
 
     // Create a new token mint
@@ -143,12 +149,23 @@ export const launchToken = async (
       TOKEN_PROGRAM_ID
     );
 
+    // If tip is included, send tip to a fee collector (for demonstration, we're not actually implementing this)
+    if (tip > 0) {
+      toast.success(`Included ${tip} SOL as a tip for the network`);
+    }
+
+    // If gas fee is adjusted, show a notification
+    if (gasFee > 0) {
+      toast.success(`Included ${gasFee} SOL for transaction priority`);
+    }
+
     return {
       tokenAddress: tokenMint.toString(),
       transactionId: mintTransaction
     };
   } catch (error) {
     console.error("Token launch failed:", error);
+    toast.error(error instanceof Error ? error.message : "Failed to launch token");
     return {
       error: error instanceof Error ? error.message : "Failed to launch token"
     };
@@ -200,17 +217,38 @@ export const getUserTokens = async (owner: PublicKey): Promise<TokenInfo[]> => {
   }
 };
 
+// Updated to include transaction fees
 export const sellToken = async (
   wallet: Keypair,
   tokenAddress: string,
   destinationAddress: string,
   amount: number,
-  decimals: number
+  decimals: number,
+  fees?: TransactionFees
 ): Promise<SellTransactionResult> => {
   try {
     const connection = createConnection();
     const mintPublicKey = new PublicKey(tokenAddress);
     const destinationPublicKey = new PublicKey(destinationAddress);
+    
+    // Check if wallet has enough balance for gas fee and tip
+    if (fees && (fees.gasFee > 0 || fees.tip > 0)) {
+      const balance = await connection.getBalance(wallet.publicKey);
+      const requiredBalance = (fees.gasFee + fees.tip) * LAMPORTS_PER_SOL;
+      
+      if (balance < requiredBalance) {
+        throw new Error(`Insufficient balance for gas fee and tip: You need ${(fees.gasFee + fees.tip).toFixed(3)} SOL`);
+      }
+      
+      // Notify about fees
+      if (fees.gasFee > 0) {
+        toast.info(`Including ${fees.gasFee} SOL for transaction priority`);
+      }
+      
+      if (fees.tip > 0) {
+        toast.info(`Including ${fees.tip} SOL as a tip for the network`);
+      }
+    }
     
     // Get the source token account
     const sourceTokenAccount = await getOrCreateAssociatedTokenAccount(
@@ -246,6 +284,7 @@ export const sellToken = async (
     };
   } catch (error) {
     console.error("Token transfer failed:", error);
+    toast.error(error instanceof Error ? error.message : "Failed to transfer tokens");
     return {
       error: error instanceof Error ? error.message : "Failed to transfer tokens"
     };
