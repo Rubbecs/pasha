@@ -18,6 +18,7 @@ import {
 } from '@solana/spl-token';
 import { toast } from "sonner";
 import { CoinDetails, CoinLaunchResult } from '@/types';
+import bs58 from 'bs58';
 
 export const RPC_ENDPOINT = "https://frosty-frequent-pool.solana-mainnet.quiknode.pro/b51ed5b606e82a64e4af515bb6864ad7da8e6fcc/";
 
@@ -42,7 +43,6 @@ export const createWalletFromPrivateKey = (privateKey: string): Keypair | null =
     
     // Check if it's a base58 encoded string
     if (privateKey.match(/^[1-9A-HJ-NP-Za-km-z]{43,88}$/)) {
-      const bs58 = require('bs58');
       secretKey = bs58.decode(privateKey);
     } else {
       // Try to parse as JSON array
