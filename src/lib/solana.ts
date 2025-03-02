@@ -14,10 +14,13 @@ import {
   getOrCreateAssociatedTokenAccount, 
   mintTo,
   TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  transfer,
+  getMint,
+  getAccount
 } from '@solana/spl-token';
 import { toast } from "sonner";
-import { CoinDetails, CoinLaunchResult } from '@/types';
+import { CoinDetails, CoinLaunchResult, SellTransactionResult, TokenInfo } from '@/types';
 import bs58 from 'bs58';
 
 export const RPC_ENDPOINT = "https://frosty-frequent-pool.solana-mainnet.quiknode.pro/b51ed5b606e82a64e4af515bb6864ad7da8e6fcc/";
@@ -162,5 +165,89 @@ export const getTokenAccountsByOwner = async (owner: PublicKey) => {
     console.error("Failed to get token accounts:", error);
     toast.error("Failed to fetch token accounts");
     return { value: [] };
+  }
+};
+
+export const getUserTokens = async (owner: PublicKey): Promise<TokenInfo[]> => {
+  try {
+    const connection = createConnection();
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(owner, {
+      programId: TOKEN_PROGRAM_ID
+    });
+    
+    const tokens: TokenInfo[] = [];
+    
+    for (const account of tokenAccounts.value) {
+      const tokenInfo = account.account.data.parsed.info;
+      const tokenAmount = tokenInfo.tokenAmount;
+      
+      if (tokenAmount.uiAmount > 0) {
+        tokens.push({
+          address: tokenInfo.mint,
+          amount: tokenAmount.uiAmount,
+          decimals: tokenAmount.decimals,
+          symbol: tokenInfo.symbol || '',
+          name: tokenInfo.name || ''
+        });
+      }
+    }
+    
+    return tokens;
+  } catch (error) {
+    console.error("Failed to get user tokens:", error);
+    toast.error("Failed to fetch token balances");
+    return [];
+  }
+};
+
+export const sellToken = async (
+  wallet: Keypair,
+  tokenAddress: string,
+  destinationAddress: string,
+  amount: number,
+  decimals: number
+): Promise<SellTransactionResult> => {
+  try {
+    const connection = createConnection();
+    const mintPublicKey = new PublicKey(tokenAddress);
+    const destinationPublicKey = new PublicKey(destinationAddress);
+    
+    // Get the source token account
+    const sourceTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet,
+      mintPublicKey,
+      wallet.publicKey
+    );
+    
+    // Get the destination token account (create if doesn't exist)
+    const destinationTokenAccount = await getOrCreateAssociatedTokenAccount(
+      connection,
+      wallet,
+      mintPublicKey,
+      destinationPublicKey
+    );
+    
+    // Convert amount to raw amount using decimals
+    const rawAmount = amount * Math.pow(10, decimals);
+    
+    // Send the tokens
+    const transferTransaction = await transfer(
+      connection,
+      wallet,
+      sourceTokenAccount.address,
+      destinationTokenAccount.address,
+      wallet,
+      BigInt(rawAmount)
+    );
+    
+    return {
+      transactionId: transferTransaction
+    };
+  } catch (error) {
+    console.error("Token transfer failed:", error);
+    return {
+      error: error instanceof Error ? error.message : "Failed to transfer tokens"
+    };
   }
 };

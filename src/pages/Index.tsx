@@ -3,35 +3,81 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import WalletConnect from '@/components/WalletConnect';
 import CoinLauncher from '@/components/CoinLauncher';
+import TokenSeller from '@/components/TokenSeller';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { WalletInfo } from '@/types';
-import { PublicKey } from '@solana/web3.js';
+import { WalletInfo, WalletDetails } from '@/types';
+import { getBalance } from '@/lib/solana';
 
 const Index = () => {
-  const [wallet, setWallet] = useState<any>(null);
+  const [wallets, setWallets] = useState<WalletDetails[]>([]);
   const [walletInfo, setWalletInfo] = useState<WalletInfo>({
     publicKey: null,
     connected: false,
+    activeWalletIndex: -1,
   });
 
-  useEffect(() => {
-    // Update wallet info when the wallet changes
-    if (wallet) {
-      setWalletInfo({
-        publicKey: wallet.publicKey,
-        connected: true,
-      });
-    } else {
-      setWalletInfo({
-        publicKey: null,
-        connected: false,
-      });
-    }
-  }, [wallet]);
+  const handleWalletConnect = (newWallet: any, index: number) => {
+    setWalletInfo({
+      publicKey: newWallet?.publicKey || null,
+      connected: !!newWallet,
+      activeWalletIndex: newWallet ? index : -1,
+    });
+  };
 
-  const handleWalletConnect = (newWallet: any) => {
-    setWallet(newWallet);
+  const handleAddWallet = (wallet: WalletDetails) => {
+    setWallets(prev => [...prev, wallet]);
+  };
+
+  const handleRemoveWallet = (id: string) => {
+    setWallets(prev => {
+      const updatedWallets = prev.filter(wallet => wallet.id !== id);
+      
+      // If we're removing the active wallet, update the active wallet
+      if (walletInfo.activeWalletIndex >= 0 && prev[walletInfo.activeWalletIndex]?.id === id) {
+        if (updatedWallets.length > 0) {
+          // Set first available wallet as active
+          handleWalletConnect(updatedWallets[0].keypair, 0);
+        } else {
+          // No wallets left
+          handleWalletConnect(null, -1);
+        }
+      } else if (walletInfo.activeWalletIndex >= updatedWallets.length) {
+        // If the active index is now out of bounds, adjust it
+        if (updatedWallets.length > 0) {
+          handleWalletConnect(updatedWallets[updatedWallets.length - 1].keypair, updatedWallets.length - 1);
+        } else {
+          handleWalletConnect(null, -1);
+        }
+      }
+      
+      return updatedWallets;
+    });
+  };
+
+  const handleSwitchWallet = (index: number) => {
+    if (index >= 0 && index < wallets.length) {
+      handleWalletConnect(wallets[index].keypair, index);
+    }
+  };
+
+  const handleRefreshBalance = async (id: string) => {
+    setWallets(prev => {
+      return Promise.all(prev.map(async wallet => {
+        if (wallet.id === id) {
+          const updatedBalance = await getBalance(wallet.publicKey);
+          return { ...wallet, balance: updatedBalance };
+        }
+        return wallet;
+      }));
+    });
+  };
+
+  const getActiveWallet = (): WalletDetails | null => {
+    if (walletInfo.activeWalletIndex >= 0 && walletInfo.activeWalletIndex < wallets.length) {
+      return wallets[walletInfo.activeWalletIndex];
+    }
+    return null;
   };
 
   return (
@@ -43,7 +89,7 @@ const Index = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
-          className="max-w-4xl mx-auto"
+          className="max-w-6xl mx-auto"
         >
           <div className="text-center mb-12">
             <motion.h1
@@ -60,40 +106,54 @@ const Index = () => {
               transition={{ duration: 0.5, delay: 0.3 }}
               className="text-lg text-gray-300 max-w-2xl mx-auto"
             >
-              Create and launch your own tokens on the Solana blockchain with ease
+              Create, launch, and manage tokens on the Solana blockchain with ease
             </motion.p>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.5, delay: 0.4 }}
-              className="md:col-span-4"
+              className="lg:col-span-4"
             >
               <WalletConnect 
                 onWalletConnect={handleWalletConnect} 
                 walletInfo={walletInfo}
+                wallets={wallets}
+                onAddWallet={handleAddWallet}
+                onRemoveWallet={handleRemoveWallet}
+                onSwitchWallet={handleSwitchWallet}
+                onRefreshBalance={handleRefreshBalance}
               />
             </motion.div>
             
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.5 }}
-              className="md:col-span-8"
-            >
-              <CoinLauncher 
-                wallet={wallet} 
-                isConnected={walletInfo.connected}
-              />
-            </motion.div>
+            <div className="lg:col-span-8 space-y-8">
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.5 }}
+              >
+                <CoinLauncher 
+                  wallet={getActiveWallet()?.keypair || null} 
+                  isConnected={walletInfo.connected}
+                />
+              </motion.div>
+              
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.6 }}
+              >
+                <TokenSeller wallet={getActiveWallet()} />
+              </motion.div>
+            </div>
           </div>
           
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.6 }}
+            transition={{ duration: 0.5, delay: 0.7 }}
             className="mt-16 text-center"
           >
             <h2 className="text-2xl font-light mb-4">Why Launch on Solana?</h2>
