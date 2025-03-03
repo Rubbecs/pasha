@@ -60,6 +60,33 @@ export type Database = {
         }
         Relationships: []
       }
+      wallets: {
+        Row: {
+          created_at: string | null
+          encrypted_private_key: string
+          id: string
+          name: string
+          public_key_string: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          encrypted_private_key: string
+          id?: string
+          name: string
+          public_key_string: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          encrypted_private_key?: string
+          id?: string
+          name?: string
+          public_key_string?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

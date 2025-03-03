@@ -13,7 +13,8 @@ import {
   PlusIcon, 
   Trash2Icon,
   RefreshCwIcon,
-  ChevronsUpDownIcon
+  ChevronsUpDownIcon,
+  LogOutIcon
 } from 'lucide-react';
 import { 
   DropdownMenu,
@@ -26,6 +27,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { createWalletFromPrivateKey, getBalance } from '@/lib/solana';
 import { WalletDetails, WalletInfo } from '@/types';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/integrations/supabase/client';
+import { useNavigate } from 'react-router-dom';
 
 interface WalletConnectProps {
   onWalletConnect: (wallet: any, index: number) => void;
@@ -53,6 +56,20 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('add');
+  const [username, setUsername] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  // Get current user
+  useEffect(() => {
+    const getUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) {
+        setUsername(data.user.user_metadata?.username || data.user.email);
+      }
+    };
+    
+    getUser();
+  }, []);
 
   useEffect(() => {
     if (privateKey) {
@@ -73,29 +90,37 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   }, [wallets.length]);
 
   const handleConnectWallet = async () => {
+    if (!privateKey) {
+      toast.error('Please enter a private key');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const keypair = createWalletFromPrivateKey(privateKey);
       
       if (keypair) {
         const walletBalance = await getBalance(keypair.publicKey);
-        const walletId = uuidv4();
         const newWallet: WalletDetails = {
-          id: walletId,
+          id: uuidv4(), // This will be replaced by the DB-generated ID
           keypair: keypair,
           publicKey: keypair.publicKey,
           name: walletName || `Wallet ${wallets.length + 1}`,
           balance: walletBalance
         };
         
-        onAddWallet(newWallet);
-        onWalletConnect(keypair, wallets.length);
+        // Add wallet via the parent component which will handle Supabase storage
+        const success = await onAddWallet(newWallet);
         
-        // Reset form
-        setPrivateKey('');
-        setWalletName('');
-        
-        toast.success('Wallet added successfully');
+        if (success) {
+          onWalletConnect(keypair, wallets.length);
+          
+          // Reset form
+          setPrivateKey('');
+          setWalletName('');
+          
+          toast.success('Wallet added successfully');
+        }
       } else {
         toast.error('Failed to add wallet');
       }
@@ -118,6 +143,17 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
     setActiveTab(value);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success('Signed out successfully');
+      navigate('/auth');
+    } catch (error) {
+      console.error('Error signing out:', error);
+      toast.error('Failed to sign out');
+    }
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto glass-panel">
       <CardHeader>
@@ -128,31 +164,42 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
               Manage your Solana wallets
             </CardDescription>
           </div>
-          {wallets.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <ChevronsUpDownIcon className="h-4 w-4 mr-2" />
-                  {wallets.length === 1 ? '1 Wallet' : `${wallets.length} Wallets`}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {wallets.map((wallet, index) => (
-                  <DropdownMenuItem
-                    key={wallet.id}
-                    className={walletInfo.activeWalletIndex === index ? "bg-secondary" : ""}
-                    onClick={() => onSwitchWallet(index)}
-                  >
-                    {wallet.name} 
-                    <span className="ml-2 text-xs opacity-70">
-                      ({wallet.publicKey.toString().slice(0, 4)}...{wallet.publicKey.toString().slice(-4)})
-                    </span>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="flex space-x-2">
+            {wallets.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <ChevronsUpDownIcon className="h-4 w-4 mr-2" />
+                    {wallets.length === 1 ? '1 Wallet' : `${wallets.length} Wallets`}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {wallets.map((wallet, index) => (
+                    <DropdownMenuItem
+                      key={wallet.id}
+                      className={walletInfo.activeWalletIndex === index ? "bg-secondary" : ""}
+                      onClick={() => onSwitchWallet(index)}
+                    >
+                      {wallet.name} 
+                      <span className="ml-2 text-xs opacity-70">
+                        ({wallet.publicKey.toString().slice(0, 4)}...{wallet.publicKey.toString().slice(-4)})
+                      </span>
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button variant="ghost" size="sm" onClick={handleSignOut} className="text-red-500 hover:text-red-400 hover:bg-red-500/10">
+              <LogOutIcon className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
+          </div>
         </div>
+        {username && (
+          <div className="text-sm text-gray-400 mt-1">
+            Signed in as: {username}
+          </div>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs value={activeTab} onValueChange={handleTabChange}>
