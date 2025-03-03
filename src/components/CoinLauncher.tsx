@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,9 +15,10 @@ import TransactionStatusComponent from './TransactionStatus';
 interface CoinLauncherProps {
   wallet: any;
   isConnected: boolean;
+  onSuccess?: (tokenAddress: string) => void;
 }
 
-const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
+const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected, onSuccess }) => {
   const [coinDetails, setCoinDetails] = useState<CoinDetails>({
     name: '',
     symbol: '',
@@ -34,7 +34,6 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
-    // Handle numeric inputs correctly
     if (name === 'decimals' || name === 'totalSupply' || name === 'gasFee' || name === 'tip') {
       const numValue = parseFloat(value);
       setCoinDetails(prevDetails => ({
@@ -55,7 +54,6 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
       return;
     }
     
-    // Validate inputs
     if (!coinDetails.name || !coinDetails.symbol) {
       toast.error('Token name and symbol are required');
       return;
@@ -93,6 +91,10 @@ const CoinLauncher: React.FC<CoinLauncherProps> = ({ wallet, isConnected }) => {
           txId: result.transactionId,
         });
         toast.success('Token launched successfully!');
+        
+        if (onSuccess && result.tokenAddress) {
+          onSuccess(result.tokenAddress);
+        }
       } else {
         setTransactionStatus({
           status: 'error',
