@@ -52,6 +52,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
   const [isPrivateKeyVisible, setIsPrivateKeyVisible] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('add');
 
   useEffect(() => {
     if (privateKey) {
@@ -61,6 +62,15 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
       setMaskedPrivateKey('');
     }
   }, [privateKey]);
+
+  useEffect(() => {
+    // Set the active tab based on wallet count
+    if (wallets.length > 0) {
+      setActiveTab('manage');
+    } else {
+      setActiveTab('add');
+    }
+  }, [wallets.length]);
 
   const handleConnectWallet = async () => {
     try {
@@ -104,6 +114,10 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
     toast.success('Address copied to clipboard');
   };
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+  };
+
   return (
     <Card className="w-full max-w-md mx-auto glass-panel">
       <CardHeader>
@@ -141,7 +155,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue={wallets.length > 0 ? "manage" : "add"}>
+        <Tabs value={activeTab} onValueChange={handleTabChange}>
           <TabsList className="mb-4 w-full">
             <TabsTrigger value="add" className="flex-1">Add Wallet</TabsTrigger>
             <TabsTrigger value="manage" className="flex-1" disabled={wallets.length === 0}>Manage Wallets</TabsTrigger>
@@ -270,10 +284,7 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
                   <Button
                     variant="link"
                     className="mt-2 text-solana-secondary"
-                    onClick={() => {
-                      const addTab = document.querySelector('[data-value="add"]') as HTMLElement;
-                      if (addTab) addTab.click();
-                    }}
+                    onClick={() => setActiveTab("add")}
                   >
                     Add your first wallet
                   </Button>

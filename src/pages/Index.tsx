@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import WalletConnect from '@/components/WalletConnect';
 import CoinLauncher from '@/components/CoinLauncher';
 import TokenSeller from '@/components/TokenSeller';
+import TokenExchange from '@/components/TokenExchange';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { WalletInfo, WalletDetails, TokenInfo } from '@/types';
@@ -20,6 +22,7 @@ const Index = () => {
     activeWalletIndex: -1,
   });
   const [launchedTokens, setLaunchedTokens] = useState<TokenInfo[]>([]);
+  const [showExchange, setShowExchange] = useState(false);
 
   const handleWalletConnect = (newWallet: any, index: number) => {
     setWalletInfo({
@@ -108,12 +111,13 @@ const Index = () => {
     
     localStorage.setItem('launchedTokens', JSON.stringify(updatedTokens));
     
+    // Show exchange after token is launched
+    setShowExchange(true);
+    
     toast.success(
       <div className="flex flex-col">
         <p>Token launched successfully!</p>
-        <Button asChild variant="link" className="p-0 h-auto text-sm text-left mt-1 underline">
-          <Link to="/tokens">Go to Token Exchange</Link>
-        </Button>
+        <p className="text-sm mt-1">You can now buy and sell this token</p>
       </div>
     );
   };
@@ -122,7 +126,11 @@ const Index = () => {
     const storedTokens = localStorage.getItem('launchedTokens');
     if (storedTokens) {
       try {
-        setLaunchedTokens(JSON.parse(storedTokens));
+        const tokens = JSON.parse(storedTokens);
+        setLaunchedTokens(tokens);
+        if (tokens.length > 0) {
+          setShowExchange(true);
+        }
       } catch (error) {
         console.error('Failed to parse stored tokens:', error);
       }
@@ -157,22 +165,6 @@ const Index = () => {
             >
               Create, launch, and manage tokens on the Solana blockchain with ease
             </motion.p>
-            
-            {launchedTokens.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                className="mt-4"
-              >
-                <Button asChild className="bg-gradient-to-r from-solana to-solana-secondary">
-                  <Link to="/tokens" className="flex items-center gap-2">
-                    <CoinsIcon className="h-4 w-4" />
-                    Go to Token Exchange
-                  </Link>
-                </Button>
-              </motion.div>
-            )}
           </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -206,10 +198,25 @@ const Index = () => {
                 />
               </motion.div>
               
+              {showExchange && (
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5, delay: 0.6 }}
+                >
+                  <TokenExchange 
+                    wallets={wallets}
+                    launchedTokens={launchedTokens}
+                    activeWalletIndex={walletInfo.activeWalletIndex}
+                    onSwitchWallet={handleSwitchWallet}
+                  />
+                </motion.div>
+              )}
+              
               <motion.div
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
+                transition={{ duration: 0.5, delay: 0.7 }}
               >
                 <TokenSeller wallet={getActiveWallet()} />
               </motion.div>
@@ -219,7 +226,7 @@ const Index = () => {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.7 }}
+            transition={{ duration: 0.5, delay: 0.8 }}
             className="mt-16 text-center"
           >
             <h2 className="text-2xl font-light mb-4">Why Launch on Solana?</h2>

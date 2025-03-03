@@ -9,26 +9,42 @@ import {
   PercentIcon, 
   CircleDollarSignIcon,
   InfoIcon,
-  HistoryIcon
+  HistoryIcon,
+  ShoppingCartIcon,
+  TagIcon,
+  WalletIcon
 } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { 
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from "@/components/ui/dropdown-menu";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { getUserTokens, buyToken, getRecentTrades } from "@/lib/solana";
+import { getUserTokens, buyToken, getRecentTrades, sellToken } from "@/lib/solana";
 import { WalletDetails, TokenInfo, TransactionStatus, TransactionFees, TradeInfo } from "@/types";
 import TransactionStatusComponent from './TransactionStatus';
 import { format } from 'date-fns';
 
 interface TokenExchangeProps {
-  wallet: WalletDetails | null;
+  wallets: WalletDetails[];
   launchedTokens?: TokenInfo[];
+  activeWalletIndex?: number;
+  onSwitchWallet?: (index: number) => void;
 }
 
-const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = [] }) => {
+const TokenExchange: React.FC<TokenExchangeProps> = ({ 
+  wallets = [], 
+  launchedTokens = [],
+  activeWalletIndex = 0,
+  onSwitchWallet
+}) => {
   const [availableTokens, setAvailableTokens] = useState<TokenInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedToken, setSelectedToken] = useState<TokenInfo | null>(null);
@@ -44,19 +60,29 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
   const [recentTrades, setRecentTrades] = useState<TradeInfo[]>([]);
   const [exchangeMode, setExchangeMode] = useState<'buy' | 'sell'>('buy');
 
+  // Active wallet
+  const activeWallet = wallets[activeWalletIndex] || null;
+
   // Exchange rate - in a real app, this would come from an exchange API
   const exchangeRate = 100; // 100 tokens per SOL
 
   const fetchAvailableTokens = async () => {
     setIsLoading(true);
     try {
-      // In a real application, you would fetch available tokens from an exchange
-      // For this demo, we'll use launched tokens + any tokens the wallet already has
-      const userTokens = wallet ? await getUserTokens(wallet.publicKey) : [];
+      // Combine all wallets' tokens and launched tokens
+      const tokensByWallet: TokenInfo[][] = [];
       
-      // Combine with launched tokens and remove duplicates
-      const combinedTokens = [...userTokens];
+      for (const wallet of wallets) {
+        if (wallet) {
+          const userTokens = await getUserTokens(wallet.publicKey);
+          tokensByWallet.push(userTokens);
+        }
+      }
       
+      // Flatten and combine with launched tokens
+      let combinedTokens: TokenInfo[] = tokensByWallet.flat();
+      
+      // Add any launched tokens that aren't already in the user's wallet
       for (const launchedToken of launchedTokens) {
         if (!combinedTokens.some(token => token.address === launchedToken.address)) {
           combinedTokens.push(launchedToken);
@@ -88,7 +114,7 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
 
   useEffect(() => {
     fetchAvailableTokens();
-  }, [wallet, launchedTokens]);
+  }, [wallets, launchedTokens]);
 
   const handleSelectToken = (token: TokenInfo) => {
     setSelectedToken(token);
@@ -133,8 +159,21 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
     }
   };
 
+  const handleTokenTransaction = async () => {
+    if (!activeWallet || !selectedToken) {
+      toast.error("Please connect a wallet and select a token");
+      return;
+    }
+
+    if (exchangeMode === 'buy') {
+      handleBuyToken();
+    } else {
+      handleSellToken();
+    }
+  };
+
   const handleBuyToken = async () => {
-    if (!wallet || !selectedToken || !solAmount) {
+    if (!activeWallet || !selectedToken || !solAmount) {
       toast.error("Please enter an amount to buy");
       return;
     }
@@ -160,7 +199,7 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
 
     try {
       const result = await buyToken(
-        wallet.keypair,
+        activeWallet.keypair,
         selectedToken.address,
         solValue,
         transactionFees
@@ -196,6 +235,73 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
     }
   };
 
+  const handleSellToken = async () => {
+    if (!activeWallet || !selectedToken || !buyAmount) {
+      toast.error("Please enter an amount to sell");
+      return;
+    }
+
+    const tokenValue = parseFloat(buyAmount);
+    if (isNaN(tokenValue) || tokenValue <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    // Check if user has enough tokens to sell
+    const userTokens = await getUserTokens(activeWallet.publicKey);
+    const userToken = userTokens.find(t => t.address === selectedToken.address);
+    
+    if (!userToken || userToken.amount < tokenValue) {
+      toast.error(`You don't have enough tokens to sell. Your balance: ${userToken?.amount || 0}`);
+      return;
+    }
+
+    setTransactionStatus({ status: 'pending', message: 'Processing sale...' });
+
+    try {
+      // In a real app, you would sell tokens to a marketplace or exchange
+      // For this demo, we'll simulate selling to a random address
+      const simulatedBuyerAddress = "HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH"; // Example address
+      
+      const result = await sellToken(
+        activeWallet.keypair,
+        selectedToken.address,
+        simulatedBuyerAddress,
+        tokenValue,
+        selectedToken.decimals,
+        transactionFees
+      );
+
+      if (result.transactionId) {
+        setTransactionStatus({
+          status: 'success',
+          message: `Successfully sold ${tokenValue.toFixed(2)} tokens!`,
+          txId: result.transactionId,
+        });
+        toast.success('Sale successful!');
+        
+        // Reset form and refresh balances
+        setBuyAmount('');
+        setSolAmount('');
+        fetchAvailableTokens();
+        fetchRecentTrades(selectedToken.address);
+      } else {
+        setTransactionStatus({
+          status: 'error',
+          message: result.error || 'Failed to sell tokens.',
+        });
+        toast.error(result.error || 'Failed to sell tokens.');
+      }
+    } catch (error: any) {
+      console.error('Token sale error:', error);
+      setTransactionStatus({
+        status: 'error',
+        message: error.message || 'An unexpected error occurred.',
+      });
+      toast.error(error.message || 'An unexpected error occurred.');
+    }
+  };
+
   return (
     <Card className="w-full glass-panel">
       <CardHeader>
@@ -206,19 +312,42 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
               Buy and sell tokens on the Solana blockchain
             </CardDescription>
           </div>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchAvailableTokens} 
-            disabled={isLoading || !wallet}
-          >
-            <RefreshCwIcon className="h-4 w-4 mr-2" />
-            Refresh
-          </Button>
+          <div className="flex gap-2">
+            {wallets.length > 1 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <WalletIcon className="h-4 w-4 mr-2" />
+                    Wallet {activeWalletIndex + 1}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {wallets.map((wallet, index) => (
+                    <DropdownMenuItem
+                      key={wallet.id}
+                      className={activeWalletIndex === index ? "bg-secondary" : ""}
+                      onClick={() => onSwitchWallet && onSwitchWallet(index)}
+                    >
+                      {wallet.name} ({wallet.balance.toFixed(3)} SOL)
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchAvailableTokens} 
+              disabled={isLoading || wallets.length === 0}
+            >
+              <RefreshCwIcon className="h-4 w-4 mr-2" />
+              Refresh
+            </Button>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!wallet ? (
+        {wallets.length === 0 ? (
           <div className="text-center py-8">
             <CoinsIcon className="mx-auto h-10 w-10 text-gray-400 mb-2" />
             <p className="text-gray-400">Please connect a wallet to use the exchange</p>
@@ -279,11 +408,11 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
                 <Tabs defaultValue="buy" value={exchangeMode} onValueChange={(v) => setExchangeMode(v as 'buy' | 'sell')}>
                   <TabsList className="w-full mb-3">
                     <TabsTrigger value="buy" className="flex-1">
-                      <ArrowDownIcon className="h-4 w-4 mr-2" />
+                      <ShoppingCartIcon className="h-4 w-4 mr-2" />
                       Buy
                     </TabsTrigger>
                     <TabsTrigger value="sell" className="flex-1">
-                      <ArrowUpIcon className="h-4 w-4 mr-2" />
+                      <TagIcon className="h-4 w-4 mr-2" />
                       Sell
                     </TabsTrigger>
                   </TabsList>
@@ -385,45 +514,135 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({ wallet, launchedTokens = 
                         </AlertDescription>
                       </Alert>
                     )}
-
-                    <Button
-                      className="w-full bg-gradient-to-r from-solana to-solana-secondary hover:opacity-90 transition-opacity"
-                      onClick={handleBuyToken}
-                      disabled={
-                        transactionStatus.status === 'pending' ||
-                        !solAmount ||
-                        parseFloat(solAmount) <= 0
-                      }
-                    >
-                      {transactionStatus.status === 'pending' ? (
-                        <span className="flex items-center gap-2">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          Processing...
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <ArrowDownIcon className="h-4 w-4" />
-                          Buy Tokens
-                        </span>
-                      )}
-                    </Button>
                   </TabsContent>
 
                   <TabsContent value="sell" className="space-y-3">
-                    <div className="text-center py-4">
-                      <p className="text-gray-400">
-                        To sell tokens, please use the Token Manager section below
-                      </p>
-                      <Button
-                        variant="outline"
-                        className="mt-2"
-                        onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}
-                      >
-                        Go to Token Manager
-                      </Button>
+                    <div className="space-y-2">
+                      <label className="text-sm text-gray-300">Token Amount</label>
+                      <Input
+                        type="number"
+                        placeholder="Amount of tokens to sell"
+                        value={buyAmount}
+                        onChange={handleBuyAmountChange}
+                        className="glass-input"
+                      />
                     </div>
+
+                    <div className="flex items-center justify-center my-2">
+                      <div className="bg-gray-800 p-1 rounded-full">
+                        <ArrowDownIcon className="h-4 w-4 text-gray-400" />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-sm text-gray-300">SOL Amount (estimated)</label>
+                      <Input
+                        type="number"
+                        placeholder="Amount in SOL"
+                        value={solAmount}
+                        onChange={handleSolAmountChange}
+                        className="glass-input"
+                        readOnly
+                      />
+                    </div>
+
+                    <div className="mb-3">
+                      <div className="flex items-center mb-1">
+                        <InfoIcon className="h-4 w-4 mr-1 text-solana-secondary" />
+                        <span className="text-sm text-gray-300">Transaction Fee Settings</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label htmlFor="gasFee" className="text-xs text-gray-400 mb-1 block">
+                            Gas Fee (SOL)
+                          </label>
+                          <Input
+                            id="gasFee"
+                            type="number"
+                            name="gasFee"
+                            placeholder="Gas Fee in SOL"
+                            value={transactionFees.gasFee}
+                            onChange={handleFeeChange}
+                            className="glass-input"
+                            step="0.001"
+                            min="0"
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="tip" className="text-xs text-gray-400 mb-1 block">
+                            Tip (SOL)
+                          </label>
+                          <Input
+                            id="tip"
+                            type="number"
+                            name="tip"
+                            placeholder="Optional Tip in SOL"
+                            value={transactionFees.tip}
+                            onChange={handleFeeChange}
+                            className="glass-input"
+                            step="0.001"
+                            min="0"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {(buyAmount && parseFloat(buyAmount) > 0) && (
+                      <Alert className="bg-black/20 border-solana/20">
+                        <InfoIcon className="h-4 w-4 text-solana" />
+                        <AlertTitle>Transaction Summary</AlertTitle>
+                        <AlertDescription className="text-sm">
+                          <div className="mt-2 space-y-1">
+                            <div className="flex justify-between">
+                              <span>Tokens to Sell:</span>
+                              <span className="font-mono">{parseFloat(buyAmount).toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Receive (estimate):</span>
+                              <span className="font-mono">{parseFloat(solAmount).toFixed(4)} SOL</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Fees:</span>
+                              <span className="font-mono">{(transactionFees.gasFee + transactionFees.tip).toFixed(4)} SOL</span>
+                            </div>
+                            <Separator className="my-1" />
+                            <div className="flex justify-between font-medium">
+                              <span>Net Amount:</span>
+                              <span className="font-mono">{(parseFloat(solAmount) - transactionFees.gasFee - transactionFees.tip).toFixed(4)} SOL</span>
+                            </div>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </TabsContent>
                 </Tabs>
+
+                <Button
+                  className="w-full mt-4 bg-gradient-to-r from-solana to-solana-secondary hover:opacity-90 transition-opacity"
+                  onClick={handleTokenTransaction}
+                  disabled={
+                    transactionStatus.status === 'pending' ||
+                    !buyAmount ||
+                    parseFloat(buyAmount) <= 0
+                  }
+                >
+                  {transactionStatus.status === 'pending' ? (
+                    <span className="flex items-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Processing...
+                    </span>
+                  ) : exchangeMode === 'buy' ? (
+                    <span className="flex items-center gap-2">
+                      <ShoppingCartIcon className="h-4 w-4" />
+                      Buy Tokens
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <TagIcon className="h-4 w-4" />
+                      Sell Tokens
+                    </span>
+                  )}
+                </Button>
               </motion.div>
             )}
 
