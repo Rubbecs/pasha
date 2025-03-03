@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { CoinsIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
+import LoginPage from '@/components/LoginPage';
 
 const Index = () => {
   const [wallets, setWallets] = useState<WalletDetails[]>([]);
@@ -24,6 +25,7 @@ const Index = () => {
   const [launchedTokens, setLaunchedTokens] = useState<TokenInfo[]>([]);
   const [showExchange, setShowExchange] = useState(false);
   const [autoBuyAmount, setAutoBuyAmount] = useState(0.01); // Default amount for auto-buy
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const handleWalletConnect = (newWallet: any, index: number) => {
     setWalletInfo({
@@ -172,6 +174,27 @@ const Index = () => {
   };
 
   useEffect(() => {
+    // Check if user is already logged in (has profile)
+    const storedProfile = localStorage.getItem('solanaBundlrProfile');
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        if (profile.username) {
+          // User has a profile, check if they have stored wallets
+          const storedWallets = localStorage.getItem('solanaBundlrWallets');
+          if (storedWallets) {
+            // Don't auto-login, show login screen to enter password
+            setIsLoggedIn(false);
+          } else {
+            // If they have a profile but no wallets, consider them logged in
+            setIsLoggedIn(true);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to parse stored profile:', error);
+      }
+    }
+
     const storedTokens = localStorage.getItem('launchedTokens');
     if (storedTokens) {
       try {
@@ -185,6 +208,10 @@ const Index = () => {
       }
     }
   }, []);
+
+  const handleLoginComplete = () => {
+    setIsLoggedIn(true);
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-gray-900 via-gray-950 to-black text-white">
@@ -216,61 +243,70 @@ const Index = () => {
             </motion.p>
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              className="lg:col-span-4"
-            >
-              <WalletConnect 
-                onWalletConnect={handleWalletConnect} 
-                walletInfo={walletInfo}
-                wallets={wallets}
-                onAddWallet={handleAddWallet}
-                onRemoveWallet={handleRemoveWallet}
-                onSwitchWallet={handleSwitchWallet}
-                onRefreshBalance={handleRefreshBalance}
-              />
-            </motion.div>
-            
-            <div className="lg:col-span-8 space-y-8">
+          {!isLoggedIn ? (
+            <LoginPage 
+              onWalletConnect={handleWalletConnect}
+              onAddWallet={handleAddWallet}
+              wallets={wallets}
+              onLoginComplete={handleLoginComplete}
+            />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               <motion.div
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
+                transition={{ duration: 0.5, delay: 0.4 }}
+                className="lg:col-span-4"
               >
-                <CoinLauncher 
-                  wallet={getActiveWallet()?.keypair || null} 
-                  isConnected={walletInfo.connected}
-                  onSuccess={handleTokenLaunched}
+                <WalletConnect 
+                  onWalletConnect={handleWalletConnect} 
+                  walletInfo={walletInfo}
+                  wallets={wallets}
+                  onAddWallet={handleAddWallet}
+                  onRemoveWallet={handleRemoveWallet}
+                  onSwitchWallet={handleSwitchWallet}
+                  onRefreshBalance={handleRefreshBalance}
                 />
               </motion.div>
               
-              {showExchange && (
+              <div className="lg:col-span-8 space-y-8">
                 <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.6 }}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.5 }}
                 >
-                  <TokenExchange 
-                    wallets={wallets}
-                    launchedTokens={launchedTokens}
-                    activeWalletIndex={walletInfo.activeWalletIndex}
-                    onSwitchWallet={handleSwitchWallet}
+                  <CoinLauncher 
+                    wallet={getActiveWallet()?.keypair || null} 
+                    isConnected={walletInfo.connected}
+                    onSuccess={handleTokenLaunched}
                   />
                 </motion.div>
-              )}
-              
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5, delay: 0.7 }}
-              >
-                <TokenSeller wallet={getActiveWallet()} />
-              </motion.div>
+                
+                {showExchange && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.6 }}
+                  >
+                    <TokenExchange 
+                      wallets={wallets}
+                      launchedTokens={launchedTokens}
+                      activeWalletIndex={walletInfo.activeWalletIndex}
+                      onSwitchWallet={handleSwitchWallet}
+                    />
+                  </motion.div>
+                )}
+                
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.5, delay: 0.7 }}
+                >
+                  <TokenSeller wallet={getActiveWallet()} />
+                </motion.div>
+              </div>
             </div>
-          </div>
+          )}
           
           <motion.div
             initial={{ opacity: 0, y: 20 }}
