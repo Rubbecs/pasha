@@ -162,8 +162,10 @@ const TokensPage = () => {
                 transition={{ duration: 0.5, delay: 0.5 }}
               >
                 <TokenExchange
-                  wallet={getActiveWallet()}
+                  wallets={wallets}
                   launchedTokens={launchedTokens}
+                  activeWalletIndex={walletInfo.activeWalletIndex}
+                  onSwitchWallet={handleSwitchWallet}
                 />
               </motion.div>
               

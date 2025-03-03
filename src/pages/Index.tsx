@@ -8,7 +8,7 @@ import TokenExchange from '@/components/TokenExchange';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { WalletInfo, WalletDetails, TokenInfo } from '@/types';
-import { getBalance, getUserTokens } from '@/lib/solana';
+import { getBalance, getUserTokens, buyToken } from '@/lib/solana';
 import { Button } from '@/components/ui/button';
 import { CoinsIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -23,6 +23,7 @@ const Index = () => {
   });
   const [launchedTokens, setLaunchedTokens] = useState<TokenInfo[]>([]);
   const [showExchange, setShowExchange] = useState(false);
+  const [autoBuyAmount, setAutoBuyAmount] = useState(0.01); // Default amount for auto-buy
 
   const handleWalletConnect = (newWallet: any, index: number) => {
     setWalletInfo({
@@ -87,7 +88,52 @@ const Index = () => {
     return null;
   };
 
-  const handleTokenLaunched = (tokenAddress: string) => {
+  const autoBuyWithAllWallets = async (tokenAddress: string) => {
+    if (wallets.length === 0) return;
+    
+    toast.info(`Auto-buying new token with ${wallets.length} wallets`);
+    
+    // Process wallets sequentially to avoid network congestion
+    for (let i = 0; i < wallets.length; i++) {
+      const wallet = wallets[i];
+      try {
+        toast.info(`Auto-buying with wallet ${wallet.name}...`);
+        
+        // Use a random amount between 0.005 and 0.02 SOL for variety
+        const buyAmount = autoBuyAmount * (0.5 + Math.random());
+        
+        const result = await buyToken(
+          wallet.keypair, 
+          tokenAddress, 
+          buyAmount, 
+          { gasFee: 0.001, tip: 0 }
+        );
+        
+        if (result.transactionId) {
+          toast.success(`Auto-buy successful with wallet ${wallet.name}`);
+        } else {
+          toast.error(`Auto-buy failed with wallet ${wallet.name}: ${result.error}`);
+        }
+        
+        // Add a small delay between transactions
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        console.error(`Auto-buy failed for wallet ${wallet.name}:`, error);
+        toast.error(`Auto-buy failed for wallet ${wallet.name}`);
+      }
+    }
+    
+    // Refresh balances after all transactions
+    toast.success('Auto-buy process completed');
+    
+    // Refresh all wallet balances
+    for (const wallet of wallets) {
+      handleRefreshBalance(wallet.id);
+    }
+  };
+
+  const handleTokenLaunched = async (tokenAddress: string) => {
     const storedTokens = localStorage.getItem('launchedTokens');
     let updatedTokens: TokenInfo[] = [];
     
@@ -120,6 +166,9 @@ const Index = () => {
         <p className="text-sm mt-1">You can now buy and sell this token</p>
       </div>
     );
+    
+    // Auto-buy with all wallets
+    await autoBuyWithAllWallets(tokenAddress);
   };
 
   useEffect(() => {

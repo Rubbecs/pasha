@@ -59,6 +59,7 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
   });
   const [recentTrades, setRecentTrades] = useState<TradeInfo[]>([]);
   const [exchangeMode, setExchangeMode] = useState<'buy' | 'sell'>('buy');
+  const [useAllWallets, setUseAllWallets] = useState(false);
 
   // Active wallet
   const activeWallet = wallets[activeWalletIndex] || null;
@@ -86,6 +87,20 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
       for (const launchedToken of launchedTokens) {
         if (!combinedTokens.some(token => token.address === launchedToken.address)) {
           combinedTokens.push(launchedToken);
+        }
+      }
+      
+      // Add some "market" tokens for simulation
+      const marketTokens: TokenInfo[] = [
+        { address: 'RAYDIUM1111111111111111111111111111111111111', amount: 0, decimals: 9, symbol: 'RAYDIUM', name: 'Raydium Token' },
+        { address: 'SERUM22222222222222222222222222222222222222', amount: 0, decimals: 9, symbol: 'SERUM', name: 'Serum Token' },
+        { address: 'ORCA333333333333333333333333333333333333333', amount: 0, decimals: 9, symbol: 'ORCA', name: 'Orca Token' },
+      ];
+      
+      // Add market tokens that aren't already in the combined list
+      for (const marketToken of marketTokens) {
+        if (!combinedTokens.some(token => token.symbol === marketToken.symbol)) {
+          combinedTokens.push(marketToken);
         }
       }
       
@@ -166,9 +181,79 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
     }
 
     if (exchangeMode === 'buy') {
-      handleBuyToken();
+      if (useAllWallets) {
+        await handleBuyWithAllWallets();
+      } else {
+        await handleBuyToken();
+      }
     } else {
-      handleSellToken();
+      await handleSellToken();
+    }
+  };
+
+  const handleBuyWithAllWallets = async () => {
+    if (!selectedToken || !solAmount || wallets.length === 0) {
+      toast.error("Please enter an amount and ensure you have connected wallets");
+      return;
+    }
+
+    const solValue = parseFloat(solAmount);
+    if (isNaN(solValue) || solValue <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    setTransactionStatus({ status: 'pending', message: 'Processing purchases with all wallets...' });
+    
+    let successCount = 0;
+    let failCount = 0;
+    
+    for (let i = 0; i < wallets.length; i++) {
+      const wallet = wallets[i];
+      try {
+        toast.info(`Buying with wallet ${wallet.name}...`);
+        
+        const result = await buyToken(
+          wallet.keypair,
+          selectedToken.address,
+          solValue,
+          transactionFees
+        );
+
+        if (result.transactionId) {
+          successCount++;
+        } else {
+          failCount++;
+          console.error(`Failed to buy with wallet ${wallet.name}:`, result.error);
+        }
+        
+        // Add a small delay between transactions
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+      } catch (error) {
+        failCount++;
+        console.error(`Error buying with wallet ${wallet.name}:`, error);
+      }
+    }
+    
+    if (successCount > 0) {
+      setTransactionStatus({
+        status: 'success',
+        message: `Successfully purchased tokens with ${successCount} wallets${failCount > 0 ? ` (${failCount} failed)` : ''}`,
+      });
+      toast.success(`Completed purchases with ${successCount} wallets`);
+      
+      // Reset form and refresh balances
+      setBuyAmount('');
+      setSolAmount('');
+      fetchAvailableTokens();
+      fetchRecentTrades(selectedToken.address);
+    } else {
+      setTransactionStatus({
+        status: 'error',
+        message: 'All transactions failed.',
+      });
+      toast.error('Failed to buy tokens with any wallet');
     }
   };
 
@@ -446,6 +531,20 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
                       />
                     </div>
 
+                    {wallets.length > 1 && (
+                      <div className="flex items-center mt-3">
+                        <label className="flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={useAllWallets}
+                            onChange={(e) => setUseAllWallets(e.target.checked)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm text-gray-300">Buy with all wallets ({wallets.length})</span>
+                        </label>
+                      </div>
+                    )}
+
                     <div className="mb-3">
                       <div className="flex items-center mb-1">
                         <InfoIcon className="h-4 w-4 mr-1 text-solana-secondary" />
@@ -510,6 +609,11 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
                               <span>Total:</span>
                               <span className="font-mono">{(parseFloat(solAmount) + transactionFees.gasFee + transactionFees.tip).toFixed(4)} SOL</span>
                             </div>
+                            {useAllWallets && (
+                              <div className="mt-2 text-solana font-medium">
+                                × {wallets.length} wallets = {((parseFloat(solAmount) + transactionFees.gasFee + transactionFees.tip) * wallets.length).toFixed(4)} SOL total
+                              </div>
+                            )}
                           </div>
                         </AlertDescription>
                       </Alert>
@@ -634,7 +738,7 @@ const TokenExchange: React.FC<TokenExchangeProps> = ({
                   ) : exchangeMode === 'buy' ? (
                     <span className="flex items-center gap-2">
                       <ShoppingCartIcon className="h-4 w-4" />
-                      Buy Tokens
+                      {useAllWallets ? `Buy with All Wallets (${wallets.length})` : 'Buy Tokens'}
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
