@@ -270,7 +270,10 @@ const WalletConnect: React.FC<WalletConnectProps> = ({
                   <Button
                     variant="link"
                     className="mt-2 text-solana-secondary"
-                    onClick={() => document.querySelector('[data-value="add"]')?.click()}
+                    onClick={() => {
+                      const addTab = document.querySelector('[data-value="add"]') as HTMLElement;
+                      if (addTab) addTab.click();
+                    }}
                   >
                     Add your first wallet
                   </Button>

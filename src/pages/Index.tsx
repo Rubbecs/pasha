@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import WalletConnect from '@/components/WalletConnect';
@@ -38,17 +37,13 @@ const Index = () => {
     setWallets(prev => {
       const updatedWallets = prev.filter(wallet => wallet.id !== id);
       
-      // If we're removing the active wallet, update the active wallet
       if (walletInfo.activeWalletIndex >= 0 && prev[walletInfo.activeWalletIndex]?.id === id) {
         if (updatedWallets.length > 0) {
-          // Set first available wallet as active
           handleWalletConnect(updatedWallets[0].keypair, 0);
         } else {
-          // No wallets left
           handleWalletConnect(null, -1);
         }
       } else if (walletInfo.activeWalletIndex >= updatedWallets.length) {
-        // If the active index is now out of bounds, adjust it
         if (updatedWallets.length > 0) {
           handleWalletConnect(updatedWallets[updatedWallets.length - 1].keypair, updatedWallets.length - 1);
         } else {
@@ -67,10 +62,8 @@ const Index = () => {
   };
 
   const handleRefreshBalance = async (id: string) => {
-    // Get the current wallet list
     const updatedWallets = [...wallets];
     
-    // Find the wallet to update and update its balance
     for (let i = 0; i < updatedWallets.length; i++) {
       if (updatedWallets[i].id === id) {
         const newBalance = await getBalance(updatedWallets[i].publicKey);
@@ -81,7 +74,6 @@ const Index = () => {
       }
     }
     
-    // Update state with the new wallet list
     setWallets(updatedWallets);
   };
 
@@ -92,22 +84,30 @@ const Index = () => {
     return null;
   };
 
-  // Handle successful token launch
-  const handleTokenLaunched = (tokenAddress: string, tokenSymbol: string, tokenDecimals: number) => {
+  const handleTokenLaunched = (tokenAddress: string) => {
+    const storedTokens = localStorage.getItem('launchedTokens');
+    let updatedTokens: TokenInfo[] = [];
+    
+    if (storedTokens) {
+      try {
+        updatedTokens = JSON.parse(storedTokens);
+      } catch (error) {
+        console.error('Failed to parse stored tokens:', error);
+      }
+    }
+    
     const newToken: TokenInfo = {
       address: tokenAddress,
-      amount: 0, // Initially the buyer has 0
-      decimals: tokenDecimals,
-      symbol: tokenSymbol
+      amount: 0,
+      decimals: 9,
+      symbol: 'TOKEN'
     };
     
-    const updatedTokens = [...launchedTokens, newToken];
+    updatedTokens = [...updatedTokens, newToken];
     setLaunchedTokens(updatedTokens);
     
-    // Store in localStorage for persistence
     localStorage.setItem('launchedTokens', JSON.stringify(updatedTokens));
     
-    // Show toast with link to token exchange
     toast.success(
       <div className="flex flex-col">
         <p>Token launched successfully!</p>
@@ -118,7 +118,6 @@ const Index = () => {
     );
   };
 
-  // Get tokens from localStorage if available
   useEffect(() => {
     const storedTokens = localStorage.getItem('launchedTokens');
     if (storedTokens) {
@@ -203,7 +202,7 @@ const Index = () => {
                 <CoinLauncher 
                   wallet={getActiveWallet()?.keypair || null} 
                   isConnected={walletInfo.connected}
-                  onTokenLaunched={handleTokenLaunched}
+                  onSuccess={handleTokenLaunched}
                 />
               </motion.div>
               

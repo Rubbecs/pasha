@@ -1,3 +1,4 @@
+
 import {
   Connection, 
   Keypair, 
@@ -19,7 +20,7 @@ import {
   getAccount
 } from '@solana/spl-token';
 import { toast } from "sonner";
-import { CoinDetails, CoinLaunchResult, SellTransactionResult, TokenInfo, TransactionFees } from '@/types';
+import { CoinDetails, CoinLaunchResult, SellTransactionResult, BuyTransactionResult, TokenInfo, TransactionFees, TradeInfo } from '@/types';
 import bs58 from 'bs58';
 
 export const RPC_ENDPOINT = "https://frosty-frequent-pool.solana-mainnet.quiknode.pro/b51ed5b606e82a64e4af515bb6864ad7da8e6fcc/";
