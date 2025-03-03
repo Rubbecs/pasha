@@ -231,7 +231,7 @@ const Index = () => {
               transition={{ duration: 0.5, delay: 0.2 }}
               className="text-4xl md:text-5xl font-light mb-4"
             >
-              Solana Bundlr
+              Pasha Bundlr
             </motion.h1>
             <motion.p
               initial={{ opacity: 0, y: -10 }}
@@ -314,7 +314,7 @@ const Index = () => {
             transition={{ duration: 0.5, delay: 0.8 }}
             className="mt-16 text-center"
           >
-            <h2 className="text-2xl font-light mb-4">Why Launch on Solana?</h2>
+            <h2 className="text-2xl font-light mb-4">Why Launch on Pasha Bundlr?</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
               <div className="glass-panel p-6">
                 <div className="w-12 h-12 bg-solana/20 rounded-full flex items-center justify-center mb-4 mx-auto">
@@ -324,7 +324,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-lg font-medium mb-2">Lightning Fast</h3>
                 <p className="text-sm text-gray-300">
-                  Solana processes thousands of transactions per second with sub-second finality.
+                  Pasha Bundlr processes thousands of transactions per second with sub-second finality.
                 </p>
               </div>
               
@@ -336,7 +336,7 @@ const Index = () => {
                 </div>
                 <h3 className="text-lg font-medium mb-2">Low Cost</h3>
                 <p className="text-sm text-gray-300">
-                  Transactions on Solana cost fractions of a penny, making token creation affordable.
+                  Transactions on Solana cost fractions of a penny, making token creation affordable. Customizable fees and snipes and soon bump bot
                 </p>
               </div>
               
