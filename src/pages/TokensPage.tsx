@@ -6,7 +6,7 @@ import Footer from '@/components/Footer';
 import TokenExchange from '@/components/TokenExchange';
 import TokenSeller from '@/components/TokenSeller';
 import { WalletInfo, WalletDetails, TokenInfo } from '@/types';
-import { getBalance, getUserTokens } from '@/lib/solana';
+import { getBalance } from '@/lib/solana';
 import WalletConnect from '@/components/WalletConnect';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { InfoIcon, ArrowLeftIcon } from 'lucide-react';
